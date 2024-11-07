@@ -1,0 +1,87 @@
+import os
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from PIL import Image
+import cv2
+train_image_dir = r'C:\Users\vidha\Downloads\Traffic Light.v1i.yolov8\train\images'
+train_label_dir = r'C:\Users\vidha\Downloads\Traffic Light.v1i.yolov8\train\labels'
+test_image_dir = r'C:\Users\vidha\Downloads\Traffic Light.v1i.yolov8\test\images'
+test_label_dir = r'C:\Users\vidha\Downloads\Traffic Light.v1i.yolov8\test\labels'
+valid_image_dir = r'C:\Users\vidha\Downloads\Traffic Light.v1i.yolov8\valid\images'
+valid_label_dir = r'C:\Users\vidha\Downloads\Traffic Light.v1i.yolov8\valid\labels'
+
+
+def load_images_and_labels(image_dir, label_dir):
+    image_files = [f for f in os.listdir(image_dir) if f.endswith('.jpg') or f.endswith('.png')]
+    images = []
+    labels = []
+
+    for file in image_files:
+        # Load and preprocess the image
+        image_path = os.path.join(image_dir, file)
+        image = Image.open(image_path).convert('RGB')
+        image = image.resize((64, 64))  # Resize for simplicity
+        images.append(np.array(image).flatten())  # Flatten the image to a 1D vector
+
+        # Load the corresponding label
+        label_file = os.path.join(label_dir, file.replace('.jpg', '.txt').replace('.png', '.txt'))
+        with open(label_file, 'r') as f:
+            annotation = f.readline().strip().split()
+            class_id = int(annotation[0])  # Assuming the first number is the class ID
+            labels.append(class_id)
+
+    return np.array(images), np.array(labels)
+
+
+# Load the training data
+X_train, y_train = load_images_and_labels(train_image_dir, train_label_dir)
+
+# Load the validation data
+X_valid, y_valid = load_images_and_labels(valid_image_dir, valid_label_dir)
+
+# Load the test data
+X_test, y_test = load_images_and_labels(test_image_dir, test_label_dir)
+
+# Initialize and train the Logistic Regression model
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Validate the model
+valid_score = model.score(X_valid, y_valid)
+print(f"Validation accuracy: {valid_score * 100:.2f}%")
+
+# Evaluate the model on the test data
+test_score = model.score(X_test, y_test)
+print(f"Test accuracy: {test_score * 100:.2f}%")
+def move_bot(prediction):
+    if prediction == 0:  # Red light
+        print("Stop the bot.")
+    elif prediction == 1:  # Yellow light
+        print("Prepare to stop.")
+    elif prediction == 2:  # Green light
+        print("Move forward.")
+    else:
+        print("No valid traffic light detected.")
+
+# Example: Predict on a new image
+cam = cv2.VideoCapture(0)
+while True:
+    ret,frame = cam.read()
+    if not ret :
+        break
+    new_image = cv2.resize(frame,(64,64))
+    new_image = cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
+    new_image = new_image.flatten().reshape(1, -1)
+    prediction = model.predict(new_image)[0]
+
+    if prediction in [0, 1, 2]:  # Valid predictions: 0 (Red), 1 (Yellow), 2 (Green)
+        move_bot(prediction)
+    else:
+        print("No valid traffic light detected.")  # Handle unexpected cases
+
+    cv2.imshow('Traffic light prediction',frame)
+
+    if cv2.waitKey(1)& 0XFF == ord('q'):
+        break
+cam.release()
+cv2.destroyAllWindows()
